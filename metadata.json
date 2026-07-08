@@ -1,0 +1,6 @@
+{
+  "name": "Black Hole Ray Tracer",
+  "description": "An interactive, real-time visualization of general relativistic light ray tracing and gravitational lensing around a Schwarzschild black hole.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
