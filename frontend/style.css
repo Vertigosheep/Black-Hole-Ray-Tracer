@@ -1,17 +1,17 @@
 :root {
-  --bg: #0b0d14;
-  --panel: #12151f;
-  --panel-raised: #171b28;
-  --line: #262b3a;
+  --bg: #0F0E47;
+  --panel: #272757;
+  --panel-raised: #3d3d75;
+  --line: #505081;
   --text: #f2f0ea;
-  --text-dim: #8892a6;
-  --amber: #e8a33d;
-  --amber-dim: #a87526;
+  --text-dim: #8686AC;
+  --amber: #8686AC;
+  --amber-dim: #505081;
   --cyan: #bfe3ff;
   --danger: #d9614f;
   --radius: 2px;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-body: "Inter", -apple-system, sans-serif;
+  --font-display: "Neuton", Georgia, serif;
+  --font-body: "Neuton", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -23,7 +23,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.55;
 }
 
@@ -596,3 +596,141 @@ select:focus {
   }
 }
 
+/* --- Fixed Left Sidebar --- */
+:root {
+  --sidebar-w: 220px;
+}
+
+.sideline-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: #0a0930;
+  border-right: 1px solid var(--line);
+  z-index: 100;
+  padding: 24px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.sideline-nav .brand-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  color: var(--text);
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.sideline-nav-heading {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 2px;
+}
+
+.sideline-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+}
+
+.sideline-nav-item {
+  position: relative;
+}
+
+/* Marker dot on the left line */
+.sideline-nav-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line);
+  transform: translateY(-50%);
+  transition: background 0.3s, box-shadow 0.3s, transform 0.3s;
+}
+
+.sideline-nav-item:hover::before,
+.sideline-nav-item:has(.active)::before {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+  transform: translateY(-50%) scale(1.4);
+}
+
+.sideline-nav-link {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-dim);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  transition: color 0.25s ease, transform 0.3s cubic-bezier(0.16,1,0.3,1), letter-spacing 0.3s;
+  cursor: pointer;
+}
+
+.sideline-nav-link:hover {
+  color: var(--text);
+  transform: translateX(10px);
+  letter-spacing: 0.02em;
+}
+
+.sideline-nav-link.active {
+  color: var(--text);
+  font-weight: 700;
+  transform: translateX(6px);
+}
+
+.sideline-nav-index {
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  color: var(--amber);
+  margin-right: 10px;
+  opacity: 0.6;
+  min-width: 20px;
+  transition: opacity 0.3s;
+}
+
+.sideline-nav-link:hover .sideline-nav-index {
+  opacity: 1;
+}
+
+/* Proximity effect: JS sets --prox (0..1) per item */
+.sideline-nav-item[style*="--prox"] .sideline-nav-link {
+  transform: translateX(calc(var(--prox, 0) * 12px));
+  color: color-mix(in srgb, var(--text) calc(var(--prox, 0) * 100%), var(--text-dim));
+}
+.sideline-nav-item[style*="--prox"]::before {
+  transform: translateY(-50%) scale(calc(1 + var(--prox, 0) * 0.6));
+  background: color-mix(in srgb, var(--amber) calc(var(--prox, 0) * 100%), var(--line));
+}
+
+/* --- Push all page content right of sidebar --- */
+body {
+  margin-left: var(--sidebar-w) !important;
+}
+
+/* Background canvas must still fill the full viewport */
+#bg-canvas {
+  left: 0 !important;
+  width: 100vw !important;
+}
