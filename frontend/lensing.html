@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Gravitational Lensing Demo — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .panelcv { background: #000; border: 1px solid var(--line); aspect-ratio: 1/1; position: relative; }
+  .panelcv .lbl { position:absolute; top:10px; left:10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); background: rgba(0,0,0,0.5); padding:3px 7px; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">04</span><h2>Gravitational Lensing Demo</h2></div>
+  <p class="lead">The same starfield, shown once undistorted and once as seen through the black hole's lensing — each background ray traced through the same geodesic integrator as the main renderer.</p>
+
+  <div class="control-row" style="max-width:320px; margin-top:10px;">
+    <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+    <input type="range" id="mass" min="0.4" max="2.5" step="0.01" value="1.0" />
+  </div>
+
+  <div class="split">
+    <div class="panelcv"><canvas id="orig"></canvas><div class="lbl">original background</div></div>
+    <div class="panelcv"><canvas id="lensed"></canvas><div class="lbl">lensed by black hole</div></div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const origCv = document.getElementById("orig");
+const lensCv = document.getElementById("lensed");
+const massEl = document.getElementById("mass");
+
+function fitAll() {
+  [origCv, lensCv].forEach(c => { c.width = c.parentElement.clientWidth; c.height = c.parentElement.clientHeight; });
+}
+window.addEventListener("resize", () => { fitAll(); draw(); });
+
+// deterministic starfield
+const STARS = [];
+(function seed() {
+  let s = 42;
+  function rnd() { s = (s*1103515245+12345)%2147483648; return s/2147483648; }
+  for (let i=0;i<220;i++) STARS.push({ x: rnd(), y: rnd(), b: 0.3+0.7*rnd() });
+})();
+
+function drawStars(ctx, w, h, xOffset) {
+  ctx.fillStyle = "#000"; ctx.fillRect(0,0,w,h);
+  STARS.forEach(s => {
+    const x = ((s.x + xOffset) % 1) * w;
+    const y = s.y * h;
+    ctx.globalAlpha = s.b;
+    ctx.fillStyle = "#dfeeff";
+    ctx.fillRect(x,y,1.6,1.6);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// Precompute deflection angle LUT for a given mass M
+function createDeflectionLUT(M) {
+  const bcrit = Physics.bCrit(M);
+  const lut = [];
+  const steps = 220; // Enough for high fidelity
+  
+  const bMin = bcrit * 1.001;
+  const bMax = bcrit * 15.0; // range where weak-field is perfectly applicable
+  
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // quadratic spacing to focus density near bMin (where deflection diverges)
+    const b = bMin + (bMax - bMin) * (t * t); 
+    const a = Physics.deflectionAngle(M, b);
+    lut.push({ b, a: a !== null ? a : 0 });
+  }
+  return lut;
+}
+
+// Fast lookup using linear interpolation
+function lookupDeflection(lut, b, M) {
+  const bcrit = Physics.bCrit(M);
+  if (b <= bcrit * 1.001) return null;
+  
+  const bMax = lut[lut.length - 1].b;
+  if (b >= bMax) {
+    return Physics.deflectionWeakField(M, b);
+  }
+  
+  let low = 0;
+  let high = lut.length - 1;
+  while (low < high - 1) {
+    const mid = (low + high) >> 1;
+    if (lut[mid].b <= b) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  
+  const p0 = lut[low];
+  const p1 = lut[high];
+  const t = (b - p0.b) / (p1.b - p0.b);
+  return p0.a + t * (p1.a - p0.a);
+}
+
+massEl.addEventListener("input", draw);
+
+function draw() {
+  const M = parseFloat(massEl.value);
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  fitAll();
+
+  const ow = origCv.width, oh = origCv.height;
+  const octx = origCv.getContext("2d");
+  drawStars(octx, ow, oh, 0);
+
+  const lw = lensCv.width, lh = lensCv.height;
+  const lctx = lensCv.getContext("2d");
+  lctx.fillStyle = "#000"; lctx.fillRect(0,0,lw,lh);
+
+  const cx = lw/2, cy = lh/2;
+  const rs = Physics.rs(M);
+  const bcrit = Physics.bCrit(M);
+  const viewScale = Math.min(lw,lh) / (bcrit*9); // maps world units to px
+
+  // Create lookup table
+  const lut = createDeflectionLUT(M);
+
+  const img = lctx.createImageData(lw, lh);
+  for (let py=0; py<lh; py+=1) {
+    for (let px=0; px<lw; px+=2) {
+      const dx = (px-cx)/viewScale, dy = (py-cy)/viewScale;
+      const b = Math.hypot(dx, dy);
+      let angleShift = 0;
+      if (b > bcrit * 1.001) {
+        const a = lookupDeflection(lut, b, M);
+        angleShift = a !== null ? a : 0;
+      }
+      const theta = Math.atan2(dy, dx);
+      let idx, alpha;
+      if (b <= rs*1.3) {
+        idx = 0; alpha = 0; // shadow
+      } else {
+        const bendFrac = Math.min(angleShift / 3.0, 1.0);
+        const sampleTheta = theta + bendFrac * 1.4;
+        const sx = ((0.5 + 0.15*Math.cos(sampleTheta)*bendFrac + (px/lw - 0.5)*(1-bendFrac*0.6)) % 1 + 1) % 1;
+        const sy = ((py/lh) + bendFrac*0.05*Math.sin(sampleTheta)) % 1;
+        alpha = 0;
+        for (const s of STARS) {
+          const ddx = Math.abs(((s.x - sx + 1.5)%1)-0.5);
+          const ddy = Math.abs(s.y - ((sy+1)%1));
+          if (ddx < 0.004 && ddy < 0.004) { alpha = s.b; break; }
+        }
+      }
+      const c = Math.round(alpha*230);
+      const p = (py*lw+px)*4;
+      img.data[p] = c*0.87; img.data[p+1] = c*0.93; img.data[p+2] = c; img.data[p+3] = 255;
+      if (px+1<lw) { const p2=p+4; img.data[p2]=img.data[p]; img.data[p2+1]=img.data[p+1]; img.data[p2+2]=img.data[p+2]; img.data[p2+3]=255; }
+    }
+  }
+  lctx.putImageData(img, 0, 0);
+
+  // shadow + photon ring overlay
+  lctx.beginPath(); lctx.arc(cx,cy, rs*viewScale, 0, Math.PI*2); lctx.fillStyle="#000"; lctx.fill();
+  lctx.beginPath(); lctx.arc(cx,cy, Physics.photonSphere(M)*viewScale, 0, Math.PI*2);
+  lctx.strokeStyle = "rgba(232,163,61,0.6)"; lctx.lineWidth=1; lctx.stroke();
+}
+fitAll();
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Event Horizon — Black Hole Ray Tracing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 40px;
+    align-items: center;
+    padding: 60px 0 70px;
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 30px; } }
+  .hero h1 { font-size: 44px; line-height: 1.05; }
+  .hero .accent { color: var(--amber); font-style: italic; }
+  .hero-canvas-wrap {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: #000;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .hero-canvas-wrap .tag {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.5);
+    padding: 3px 7px;
+  }
+  .cta-row { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
+  .subgrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin: 50px 0;
+  }
+  @media (max-width: 860px) { .subgrid { grid-template-columns: 1fr; } }
+  .subgrid .panel h3 { font-size: 16px; color: var(--amber); }
+  .subgrid .panel p { color: var(--text-dim); font-size: 13.5px; margin: 0; }
+  .demo-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .demo-list a {
+    display: block;
+    text-decoration: none;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .demo-list a:hover { border-color: var(--amber-dim); transform: translateY(-1px); }
+  .demo-list .n { font-family: var(--font-mono); color: var(--amber); font-size: 11px; }
+  .demo-list .t { font-size: 14px; margin-top: 4px; }
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .team-card { padding: 16px; }
+  .team-card .role { color: var(--amber); font-size: 11.5px; font-family: var(--font-mono); }
+  .formula { font-family: var(--font-mono); color: var(--cyan); font-size: 14px; background: #0e1119; border: 1px solid var(--line); padding: 14px 16px; display: inline-block; margin: 10px 0; }
+</style>
+</head>
+<body>
+<!-- Parallax rotating black hole background -->
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+
+<div id="nav-root"></div>
+
+<div class="page">
+
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Ray Tracing Black Holes</div>
+      <h1>Ray-traced <span class="accent">gravity</span>,<br/>rendered in real time.</h1>
+      <p class="lead">
+        A from-scratch renderer that fires light rays through curved spacetime around a
+        Schwarzschild black hole, bending them geodesic-by-geodesic until they escape,
+        orbit, or fall past the event horizon. An ML surrogate model then learns to
+        approximate the expensive integration, trading a bit of accuracy for a lot of speed.
+      </p>
+      <div class="cta-row">
+        <a href="renderer.html" class="star-border-container">
+          <div class="border-gradient-bottom" style="background: radial-gradient(circle, var(--amber), transparent 10%); animation-duration: 5s;"></div>
+          <div class="border-gradient-top" style="background: radial-gradient(circle, var(--amber), transparent 10%); animation-duration: 5s;"></div>
+          <div class="inner-content" style="padding: 10px 22px; font-size: 11px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.15em; font-weight: bold; background: rgba(5,5,5,0.85); border-color: rgba(255,255,255,0.12);">
+            ▶ Start Simulation
+          </div>
+        </a>
+        <a href="https://github.com/" target="_blank" rel="noopener"><button class="btn">GitHub Repository</button></a>
+      </div>
+    </div>
+    <div class="hero-canvas-wrap">
+      <canvas id="heroCanvas"></canvas>
+      <div class="tag">live preview · M = 1.0 · schwarzschild</div>
+    </div>
+  </section>
+
+  <section style="padding-top:50px;">
+    <div class="section-title"><span class="idx">§1</span><h2>What is black hole ray tracing?</h2></div>
+    <p class="lead" style="max-width:760px;">
+      Ordinary ray tracing assumes light travels in straight lines. Near a black hole it doesn't —
+      spacetime itself is curved, so light follows <strong>geodesics</strong>: the straightest possible
+      paths through that curvature. To render an image, we fire one ray per pixel backward from a
+      virtual camera, integrate its bent trajectory through the curved metric, and ask what it hits:
+      the accretion disk, a background star, or the black hole's shadow. The result is a genuine
+      gravitational-lensing image, not a stylized approximation.
+    </p>
+  </section>
+
+  <section style="padding-top:40px;">
+    <div class="section-title"><span class="idx">§2</span><h2>The physics behind the simulation</h2></div>
+    <div class="grid-2">
+      <div class="panel">
+        <h3 style="color:var(--amber); font-size:15px;">Schwarzschild metric</h3>
+        <p style="color:var(--text-dim); font-size:13.5px;">
+          For a non-rotating black hole of mass M, spacetime curvature is fully described by one
+          metric. Photon paths in the equatorial plane reduce to a single orbit equation in
+          u = 1/r:
+        </p>
+        <div class="formula">d²u/dφ² + u = 3Mu²</div>
+        <p style="color:var(--text-dim); font-size:13.5px;">
+          The 3Mu² term is the general-relativistic correction — set it to zero and you recover
+          straight-line Newtonian optics.
+        </p>
+      </div>
+      <div class="panel">
+        <h3 style="color:var(--amber); font-size:15px;">Key radii</h3>
+        <p style="color:var(--text-dim); font-size:13.5px;">Everything else — the shadow size, the photon ring, the innermost stable orbit — falls out of two numbers:</p>
+        <div class="stat-grid" style="margin-top:10px;">
+          <div class="stat-cell"><div class="k">Event horizon</div><div class="v">r_s = 2M</div></div>
+          <div class="stat-cell"><div class="k">Photon sphere</div><div class="v">r_ph = 3M</div></div>
+          <div class="stat-cell"><div class="k">ISCO</div><div class="v">r_isco = 6M</div></div>
+          <div class="stat-cell"><div class="k">Critical impact param.</div><div class="v">b_c = 3√3 M</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Gravitational Redshift & Time Dilation Readout ────────────────── -->
+  <section style="padding-top:50px;" id="redshift-section">
+    <div class="section-title"><span class="idx">§3</span><h2>Gravitational Redshift &amp; Time Dilation</h2></div>
+    <p class="lead" style="max-width:720px;">
+      A clock sitting near a black hole ticks slower than one far away — and photons climbing out of a gravity well lose energy and shift toward the red end of the spectrum. Both effects follow directly from the <strong>Schwarzschild metric factor</strong> <em>f(r) = 1 − 2M/r</em>.
+    </p>
+
+    <div class="grid-2" style="margin-top:24px; align-items:start;">
+      <!-- Interactive readout -->
+      <div class="grav-readout">
+        <div class="grav-readout__title">Live Schwarzschild Calculator</div>
+
+        <div class="r-row">
+          <label for="gr-mass-slider">M =</label>
+          <input type="range" id="gr-mass-slider" min="0.3" max="3" step="0.05" value="1.0" style="flex:1;" />
+          <span class="r-val" id="gr-mass-val">1.00 M</span>
+        </div>
+        <div class="r-row">
+          <label for="gr-r-slider">r =</label>
+          <input type="range" id="gr-r-slider" min="2.05" max="30" step="0.05" value="6.0" style="flex:1;" />
+          <span class="r-val" id="gr-r-val">6.00 M</span>
+        </div>
+
+        <div class="grav-readout__grid">
+          <div class="grav-readout__cell">
+            <div class="k">Gravitational Redshift z</div>
+            <div class="v" id="gr-z-val">—</div>
+          </div>
+          <div class="grav-readout__cell">
+            <div class="k">Time Dilation τ / t</div>
+            <div class="v" id="gr-td-val">—</div>
+          </div>
+          <div class="grav-readout__cell">
+            <div class="k">Metric factor f(r)</div>
+            <div class="v" id="gr-f-val">—</div>
+          </div>
+          <div class="grav-readout__cell">
+            <div class="k">Distance from Rs</div>
+            <div class="v" id="gr-gap-val">—</div>
+          </div>
+          <div class="grav-readout__cell">
+            <div class="k">Escape velocity v<sub>esc</sub></div>
+            <div class="v" id="gr-vesc-val">—</div>
+          </div>
+        </div>
+
+        <div class="grav-readout__formula">
+          <span>z(r)</span> = 1 / √(1 − 2M/r) − 1<br/>
+          <span>τ/t</span> = √(1 − 2M/r)<br/>
+          <span>f(r)</span> = 1 − r<sub>s</sub>/r &nbsp;|&nbsp; r<sub>s</sub> = 2M<br/>
+          <span>v<sub>esc</sub></span> = √(2M/r)
+        </div>
+      </div>
+
+      <!-- Explanation panel -->
+      <div class="panel">
+        <h3 style="color:var(--amber); font-size:15px;">What these numbers mean</h3>
+        <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:12px;">
+          <strong style="color:var(--text);">Redshift z</strong> tells you by how much a photon emitted at radius <em>r</em> is stretched when received at infinity. A photon emitted with wavelength λ arrives with λ · (1 + z). At r → 2M the redshift diverges — the photon's energy goes to zero before it escapes.
+        </p>
+        <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:12px;">
+          <strong style="color:var(--text);">Time dilation τ/t</strong> is the ratio of proper time (experienced by a stationary observer at <em>r</em>) to coordinate time at infinity. At r = 6M (ISCO) a clock ticks at ≈ 94% of the rate of a distant clock. At the photon sphere (r = 3M) it ticks at ≈ 82%.
+        </p>
+        <div class="stat-grid" style="margin-top:14px;">
+          <div class="stat-cell"><div class="k">At ISCO (r = 6M)</div><div class="v" id="gr-isco-z">—</div></div>
+          <div class="stat-cell"><div class="k">At photon sphere (3M)</div><div class="v" id="gr-ph-z">—</div></div>
+          <div class="stat-cell"><div class="k">At 10M</div><div class="v" id="gr-10m-z">—</div></div>
+          <div class="stat-cell"><div class="k">At 100M</div><div class="v" id="gr-100m-z">—</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:50px;">
+    <div class="section-title"><span class="idx">§4</span><h2>Explore the simulation suite</h2></div>
+    <p class="lead">Twelve linked demos, each isolating one piece of the physics.</p>
+    <div class="demo-list">
+      <a href="renderer.html"><div class="n">01</div><div class="t">Interactive Black Hole Renderer</div></a>
+      <a href="trajectories.html"><div class="n">02</div><div class="t">Photon Trajectory Graph</div></a>
+      <a href="mesh.html"><div class="n">03</div><div class="t">Spacetime Curvature Mesh</div></a>
+      <a href="lensing.html"><div class="n">04</div><div class="t">Gravitational Lensing Demo</div></a>
+      <a href="animation.html"><div class="n">05</div><div class="t">Ray Tracing Animation</div></a>
+      <a href="deflection.html"><div class="n">06</div><div class="t">Deflection Angle Graph</div></a>
+      <a href="intensity.html"><div class="n">07</div><div class="t">Light Intensity Profile</div></a>
+      <a href="orbits.html"><div class="n">08</div><div class="t">Orbit Simulator</div></a>
+      <a href="compare.html"><div class="n">09</div><div class="t">Newtonian vs. General Relativity</div></a>
+      <a href="roadmap.html"><div class="n">10–12</div><div class="t">Stats, Physics Panel &amp; Roadmap</div></a>
+    </div>
+  </section>
+
+  <section style="padding-top:50px;">
+    <div class="section-title"><span class="idx">§5</span><h2>Team</h2></div>
+    <div class="team-grid">
+      <div class="panel team-card"><div class="role">Geodesic Integration &amp; Renderer</div><div style="margin-top:6px;">Anshika Sharma</div></div>
+      <div class="panel team-card"><div class="role">Theoretical Framework</div><div style="margin-top:6px;">Manya Mishra</div></div>
+      <div class="panel team-card"><div class="role">Frontend &amp; Visualization</div><div style="margin-top:6px;">Vagisha Yadav</div></div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="sitefoot">Built for a one-week undergraduate sprint · Schwarzschild ray tracing + ML surrogate</footer>
+
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+// ── Gravitational Redshift / Time Dilation widget ────────────────────────
+(function () {
+  const massSlider = document.getElementById("gr-mass-slider");
+  const rSlider    = document.getElementById("gr-r-slider");
+  const massVal    = document.getElementById("gr-mass-val");
+  const rVal       = document.getElementById("gr-r-val");
+  const zVal       = document.getElementById("gr-z-val");
+  const tdVal      = document.getElementById("gr-td-val");
+  const fVal       = document.getElementById("gr-f-val");
+  const gapVal     = document.getElementById("gr-gap-val");
+  const iscoZ      = document.getElementById("gr-isco-z");
+  const phZ        = document.getElementById("gr-ph-z");
+  const m10        = document.getElementById("gr-10m-z");
+  const m100       = document.getElementById("gr-100m-z");
+
+  function fmt(x, digits) {
+    if (!isFinite(x)) return "∞";
+    return x.toFixed(digits ?? 4);
+  }
+
+  function colorClass(z) {
+    if (z > 1)   return "danger";
+    if (z > 0.2) return "warn";
+    return "";
+  }
+
+  function update() {
+    const M = parseFloat(massSlider.value);
+    const r = parseFloat(rSlider.value);
+    const rs = Physics.rs(M);
+
+    // Guard: r must be > rs
+    const safeR = Math.max(r, rs + 0.01);
+
+    massVal.textContent = M.toFixed(2) + " M";
+    rVal.textContent    = r.toFixed(2) + " M";
+
+    const z  = Physics.gravitationalRedshift(M, safeR);
+    const td = Physics.timeDilation(M, safeR);
+    const f  = Physics.metricFactor(M, safeR);
+    const gap = safeR - rs;
+
+    zVal.textContent   = fmt(z);
+    tdVal.textContent  = fmt(td);
+    fVal.textContent   = fmt(f);
+    gapVal.textContent = fmt(gap, 2) + " M";
+
+    // Escape velocity (ported from Python BlackHole.escape_velocity)
+    const vescEl = document.getElementById("gr-vesc-val");
+    if (vescEl) {
+      const vesc = Physics.escapeVelocity(M, safeR);
+      vescEl.textContent = isFinite(vesc) ? fmt(vesc, 4) + " c" : "≥ c";
+      vescEl.className = "v" + (vesc >= 1 ? " danger" : vesc > 0.5 ? " warn" : "");
+    }
+
+    zVal.className  = "v " + colorClass(z);
+    tdVal.className = "v " + (td < 0.7 ? "warn" : "");
+
+    // Fixed reference rows (always use current M)
+    const refs = [
+      { el: iscoZ,  r: 6 * M  },
+      { el: phZ,    r: 3 * M  },
+      { el: m10,    r: 10 * M },
+      { el: m100,   r: 100* M },
+    ];
+    refs.forEach(({ el, r: rr }) => {
+      const zz = Physics.gravitationalRedshift(M, rr);
+      const tt = Physics.timeDilation(M, rr);
+      el.textContent = "z=" + fmt(zz, 4) + "  τ/t=" + fmt(tt, 4);
+    });
+  }
+
+  massSlider.addEventListener("input", update);
+  rSlider.addEventListener("input", update);
+  update();
+})();
+
+// --- Signature hero element: tiny live black-hole shadow render ---
+const canvas = document.getElementById("heroCanvas");
+function fit() {
+  const wrap = canvas.parentElement;
+  const size = wrap.clientWidth;
+  canvas.width = size; canvas.height = size;
+}
+fit();
+window.addEventListener("resize", fit);
+const ctx = canvas.getContext("2d");
+
+let t = 0;
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, w, h);
+
+  // faint distorted starfield dots (static seed)
+  ctx.save();
+  for (let i = 0; i < 90; i++) {
+    const seed = i * 12.9898;
+    const sx = (Math.sin(seed) * 0.5 + 0.5) * w;
+    const sy = (Math.cos(seed * 1.7) * 0.5 + 0.5) * h;
+    const d = Math.hypot(sx - cx, sy - cy);
+    const shadowR = w * 0.17;
+    if (d < shadowR * 1.05) continue;
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(seed);
+    ctx.fillStyle = "#bfe3ff";
+    ctx.fillRect(sx, sy, 1.4, 1.4);
+  }
+  ctx.restore();
+
+  // accretion disk (rotating, bent above/below via simple vertical squash + glow)
+  const rOuter = w * 0.42, rInner = w * 0.19;
+  const tilt = 0.28;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(0);
+  for (let ring = 0; ring < 26; ring++) {
+    const frac = ring / 26;
+    const r = rInner + frac * (rOuter - rInner);
+    const angleOffset = t * (0.6 + frac * 0.4);
+    const alpha = (1 - frac) * 0.55;
+    const hue = 40 - frac * 25;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * tilt, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${hue}, 90%, ${60 - frac * 20}%, ${alpha})`;
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // photon ring (bright thin ring at ~2.6M)
+  ctx.beginPath();
+  ctx.arc(cx, cy, w * 0.185, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,225,170,0.85)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // shadow (pure black disk on top)
+  ctx.beginPath();
+  ctx.arc(cx, cy, w * 0.17, 0, Math.PI * 2);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+
+  t += 0.006;
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>

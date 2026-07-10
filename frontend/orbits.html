@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Orbit Simulator — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .canvas-wrap { background: #05060a; border: 1px solid var(--line); }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); margin-bottom: 8px; }
+  .swatch { width: 12px; height: 3px; border-radius: 2px; }
+  p.note { font-size: 11.5px; color: var(--text-dim); }
+  .orbit-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .orbit-btns button { font-size: 10px; font-family: var(--font-mono); padding: 5px 10px; border: 1px solid var(--line); background: var(--panel-raised); color: var(--text-dim); cursor: pointer; text-transform: uppercase; letter-spacing: 0.05em; }
+  .orbit-btns button.active { border-color: var(--amber); color: var(--amber); background: rgba(232,163,61,0.08); }
+  .orbit-btns button:hover { border-color: var(--amber-dim); color: var(--text); }
+  select { width: 100%; background: var(--panel-raised); color: var(--text); border: 1px solid var(--line); padding: 7px 8px; font-family: var(--font-mono); font-size: 12px; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">08</span><h2>Orbit Simulator</h2></div>
+  <p class="lead">Massive test particles orbiting the black hole, integrated from the general-relativistic orbit equation d²u/dφ² + u = M/h² + 3Mu² — the extra 3Mu² term is what makes GR orbits precess, spiral, and plunge in ways Newtonian gravity never does.</p>
+
+  <div class="layout" style="margin-top:20px;">
+    <div class="panel">
+      <h3 style="font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">Controls</h3>
+
+      <div class="control-row">
+        <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+        <input type="range" id="mass" min="0.5" max="2" step="0.01" value="1.0" />
+      </div>
+      <div class="control-row">
+        <label>Orbit radius <span class="val mono" id="radiusVal">9.0 M</span></label>
+        <input type="range" id="radius" min="6.5" max="30" step="0.1" value="9.0" />
+      </div>
+
+      <div class="control-row">
+        <label>Integration mode</label>
+        <select id="integMode">
+          <option value="reduced" selected>Reduced orbit equation (fast)</option>
+          <option value="geodesic">Full geodesic (Christoffel, 8-state)</option>
+        </select>
+      </div>
+
+      <h3 style="font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em; margin:16px 0 8px;">Orbit presets</h3>
+      <div class="orbit-btns">
+        <button id="btn-stable" class="active">Stable</button>
+        <button id="btn-unstable">Unstable</button>
+        <button id="btn-escape">Escape</button>
+        <button id="btn-capture">Capture</button>
+        <button id="btn-all">All four</button>
+      </div>
+
+      <div style="margin-top:16px; border-top:1px solid var(--line); padding-top:14px;">
+        <div class="legend-item"><span class="swatch" style="background:#7fe0a0"></span>Stable orbit (precessing rosette)</div>
+        <div class="legend-item"><span class="swatch" style="background:#e8a33d"></span>Unstable orbit (slow inward spiral)</div>
+        <div class="legend-item"><span class="swatch" style="background:#7fd4ff"></span>Escape orbit (flyby)</div>
+        <div class="legend-item"><span class="swatch" style="background:#d9614f"></span>Capture orbit (plunge)</div>
+      </div>
+
+      <div style="margin-top:14px; border-top:1px solid var(--line); padding-top:14px;">
+        <div class="stat-cell" style="padding:0;">
+          <div class="k">Event horizon</div>
+          <div class="v" id="statRs">2.00 M</div>
+        </div>
+        <div class="stat-cell" style="padding:0; margin-top:8px;">
+          <div class="k">ISCO</div>
+          <div class="v" id="statIsco">6.00 M</div>
+        </div>
+        <div class="stat-cell" style="padding:0; margin-top:8px;">
+          <div class="k">Photon sphere</div>
+          <div class="v" id="statRph">3.00 M</div>
+        </div>
+        <div class="stat-cell" style="padding:0; margin-top:8px;">
+          <div class="k">Orbital period (stable)</div>
+          <div class="v" id="statPeriod">—</div>
+        </div>
+        <div class="stat-cell" style="padding:0; margin-top:8px;">
+          <div class="k">Escape velocity at r</div>
+          <div class="v" id="statVesc">—</div>
+        </div>
+      </div>
+
+      <p class="note" style="margin-top:14px;">
+        <strong>Reduced mode</strong> integrates the 1D orbit equation (u, du/dφ) — fast and accurate for equatorial orbits.
+        <strong>Full geodesic mode</strong> uses the 8-component state vector with Christoffel symbols, ported from the Python ray tracer.
+      </p>
+    </div>
+    <div class="canvas-wrap"><canvas id="cv"></canvas></div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+function fit() { canvas.width = canvas.parentElement.clientWidth; canvas.height = 580; }
+fit();
+window.addEventListener("resize", () => { fit(); draw(); });
+
+// Controls
+const massEl    = document.getElementById("mass");
+const radiusEl  = document.getElementById("radius");
+const modeEl    = document.getElementById("integMode");
+
+const state = {
+  mass: 1.0,
+  radius: 9.0,
+  mode: 'reduced',
+  preset: 'stable'
+};
+
+massEl.addEventListener("input", e => { state.mass = parseFloat(e.target.value); updateMinRadius(); draw(); });
+radiusEl.addEventListener("input", e => { state.radius = parseFloat(e.target.value); draw(); });
+modeEl.addEventListener("change", e => { state.mode = e.target.value; draw(); });
+
+// Preset buttons
+const presetBtns = {
+  stable: document.getElementById("btn-stable"),
+  unstable: document.getElementById("btn-unstable"),
+  escape: document.getElementById("btn-escape"),
+  capture: document.getElementById("btn-capture"),
+  all: document.getElementById("btn-all"),
+};
+Object.entries(presetBtns).forEach(([key, btn]) => {
+  btn.addEventListener("click", () => {
+    state.preset = key;
+    Object.values(presetBtns).forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    draw();
+  });
+});
+
+function updateMinRadius() {
+  const minR = Physics.isco(state.mass) + 0.5;
+  radiusEl.min = minR.toFixed(1);
+  if (state.radius < minR) {
+    state.radius = minR;
+    radiusEl.value = minR;
+  }
+}
+
+// Orbit configurations — functions of (M, r0)
+function getOrbitConfigs(M, r0) {
+  const u0 = 1 / r0;
+  return {
+    stable:   { color: "#7fe0a0", h: 4.6,  du0: 0.0,    maxPhi: 60 },
+    unstable: { color: "#e8a33d", h: 3.75, du0: 0.002,  maxPhi: 60 },
+    escape:   { color: "#7fd4ff", h: 5.6,  du0: -0.06,  maxPhi: 20 },
+    capture:  { color: "#d9614f", h: 3.1,  du0: -0.05,  maxPhi: 20 },
+  };
+}
+
+// Full geodesic orbit tracer (uses Physics.simulateOrbit)
+function traceFullGeodesic(M, radius, du0Perturb) {
+  try {
+    const initState = Physics.circularOrbit(M, radius);
+    // Apply radial velocity perturbation
+    initState[5] = du0Perturb;
+
+    const stepSize = 0.05;
+    const period = Physics.orbitalPeriod(initState);
+    const totalTime = Math.min(4 * period, 600);
+    const steps = Math.min(Math.floor(totalTime / stepSize), 12000);
+
+    const trajectory = Physics.simulateOrbit(M, initState, stepSize, steps);
+
+    // Convert to {r, phi} for plotting
+    return trajectory.map(s => ({ r: s[1], phi: s[3] }));
+  } catch (e) {
+    return [];
+  }
+}
+
+function draw() {
+  const M = state.mass;
+  const r0 = state.radius;
+  const u0 = 1 / r0;
+  const rs = Physics.rs(M);
+
+  // Update labels
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  document.getElementById("radiusVal").textContent = r0.toFixed(1) + " M";
+  document.getElementById("statRs").textContent = rs.toFixed(2) + " M";
+  document.getElementById("statIsco").textContent = Physics.isco(M).toFixed(2) + " M";
+  document.getElementById("statRph").textContent = Physics.photonSphere(M).toFixed(2) + " M";
+  document.getElementById("statVesc").textContent = Physics.escapeVelocity(M, r0).toFixed(4) + " c";
+
+  // Orbital period for stable circular orbit
+  try {
+    const circState = Physics.circularOrbit(M, r0);
+    const period = Physics.orbitalPeriod(circState);
+    document.getElementById("statPeriod").textContent = isFinite(period) ? period.toFixed(2) + " τ" : "∞";
+  } catch (e) {
+    document.getElementById("statPeriod").textContent = "—";
+  }
+
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2;
+  const scale = Math.min(w, h) / (26 * M);
+  ctx.fillStyle = "#05060a";
+  ctx.fillRect(0, 0, w, h);
+
+  // Reference circles
+  // ISCO
+  ctx.strokeStyle = "rgba(191, 227, 255, 0.08)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, Physics.isco(M) * scale, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Photon sphere
+  ctx.strokeStyle = "rgba(232, 163, 61, 0.2)";
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, Physics.photonSphere(M) * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Event horizon
+  ctx.beginPath();
+  ctx.arc(cx, cy, rs * scale, 0, Math.PI * 2);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(217, 97, 79, 0.5)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Determine which orbits to draw
+  const configs = getOrbitConfigs(M, r0);
+  let orbitsToDraw = [];
+
+  if (state.preset === 'all') {
+    orbitsToDraw = Object.entries(configs);
+  } else {
+    orbitsToDraw = [[state.preset, configs[state.preset]]];
+  }
+
+  orbitsToDraw.forEach(([key, cfg]) => {
+    let pts;
+
+    if (state.mode === 'geodesic' && key === 'stable') {
+      // Full geodesic for stable orbit
+      pts = traceFullGeodesic(M, r0, 0);
+    } else if (state.mode === 'geodesic' && key === 'unstable') {
+      pts = traceFullGeodesic(M, r0, 0.002);
+    } else {
+      // Reduced orbit equation (fast path) via Physics.traceMassive
+      pts = Physics.traceMassive(M, cfg.h, u0, cfg.du0, {
+        dphi: 0.01,
+        maxPhi: cfg.maxPhi
+      });
+    }
+
+    if (!pts || pts.length === 0) return;
+
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const x = cx + p.r * Math.cos(p.phi) * scale;
+      const y = cy + p.r * Math.sin(p.phi) * scale;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = cfg.color;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  });
+
+  // Starting radius indicator
+  ctx.beginPath();
+  ctx.arc(cx + r0 * scale, cy, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+updateMinRadius();
+draw();
+</script>
+</body>
+</html>
+

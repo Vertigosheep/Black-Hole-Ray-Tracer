@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Stats, Physics &amp; Roadmap — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .future-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:14px; margin-top:14px; }
+  .future-card { padding:16px; }
+  .future-card .tag { font-family: var(--font-mono); font-size: 10px; color: var(--amber-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page">
+
+  <div class="section-title"><span class="idx">10</span><h2>Simulation Statistics</h2></div>
+  <p class="lead">Live performance and physics readouts already surface on the main renderer (frame time, event horizon, photon sphere). The full set this panel is meant to expose:</p>
+  <div class="stat-grid" style="margin-top:14px;">
+    <div class="stat-cell"><div class="k">Rays traced</div><div class="v">width × height</div></div>
+    <div class="stat-cell"><div class="k">Computation time</div><div class="v">ms / frame</div></div>
+    <div class="stat-cell"><div class="k">Numerical step size</div><div class="v">Δφ = 0.045</div></div>
+    <div class="stat-cell"><div class="k">Integration error</div><div class="v">RK4, O(Δφ⁵)</div></div>
+    <div class="stat-cell"><div class="k">Black hole mass</div><div class="v">M</div></div>
+    <div class="stat-cell"><div class="k">Event horizon radius</div><div class="v">r_s = 2M</div></div>
+    <div class="stat-cell"><div class="k">Photon sphere radius</div><div class="v">r_ph = 3M</div></div>
+  </div>
+  <p style="color:var(--text-dim); font-size:12.5px; margin-top:10px;">
+    Rays traced and computation time are already live in the renderer's stat panel. Wiring in a
+    true per-frame integration-error estimate (e.g. comparing RK4 against a higher-order or
+    adaptive-step reference) is a good next task for whoever owns the geodesic integrator.
+  </p>
+
+  <div class="section-title" style="margin-top:50px;"><span class="idx">11</span><h2>Physics Explanation Panel</h2></div>
+  <div class="panel">
+    <p style="color:var(--text-dim); font-size:13.5px; margin:0 0 12px 0;">
+      Everything in this project comes from one equation — the null-geodesic orbit equation for
+      light in the Schwarzschild metric:
+    </p>
+    <div class="formula mono" style="font-family:var(--font-mono); color:var(--cyan); background:#0e1119; border:1px solid var(--line); padding:14px 16px; display:inline-block;">
+      d²u/dφ² + u = 3Mu², &nbsp; u = 1/r
+    </div>
+    <ul style="color:var(--text-dim); font-size:13.5px; line-height:1.7; margin-top:14px;">
+      <li><strong>Drop the right-hand side</strong> and you get simple harmonic motion in u — a straight line in polar form. That's Newtonian optics.</li>
+      <li><strong>Keep it</strong> and orbits precess, photons can circle the black hole any number of times, and there's a critical impact parameter b_crit = 3√3 M below which no ray escapes.</li>
+      <li>The <strong>photon sphere</strong> (r = 3M) is the unstable circular photon orbit; it's why a thin bright ring appears at the edge of the shadow in every render.</li>
+      <li>The <strong>event horizon</strong> (r = 2M) is where escape becomes impossible regardless of angle — the true edge of the shadow.</li>
+    </ul>
+  </div>
+
+  <div class="section-title" style="margin-top:50px;"><span class="idx">12</span><h2>Optional Future Features</h2></div>
+  <p class="lead">Scoped for after the one-week deadline, roughly in order of implementation effort:</p>
+  <div class="future-grid">
+    <div class="panel future-card"><div class="tag">Metric upgrade</div><div style="margin-top:8px;">Rotating (Kerr) black hole — frame dragging, ergosphere, asymmetric shadow.</div></div>
+    <div class="panel future-card"><div class="tag">Shading</div><div style="margin-top:8px;">Redshift / blueshift visualization on the accretion disk and background stars.</div></div>
+    <div class="panel future-card"><div class="tag">Shading</div><div style="margin-top:8px;">Doppler beaming — brighter approaching-side disk emission, dimmer receding side.</div></div>
+    <div class="panel future-card"><div class="tag">Scene complexity</div><div style="margin-top:8px;">Multiple black holes with overlapping lensing fields.</div></div>
+    <div class="panel future-card"><div class="tag">Interaction</div><div style="margin-top:8px;">VR camera mode for immersive exploration of the shadow and photon ring.</div></div>
+  </div>
+
+</div>
+<script src="nav.js"></script>
+<script src="blackhole-bg.js"></script>
+</body>
+</html>

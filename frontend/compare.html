@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Newtonian vs GR — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .panelcv { background: #05060a; border: 1px solid var(--line); aspect-ratio: 1/1; position: relative; }
+  .panelcv .lbl { position:absolute; top:10px; left:10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); background: rgba(0,0,0,0.5); padding:3px 7px; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">09</span><h2>Newtonian vs. General Relativity</h2></div>
+  <p class="lead">A bundle of parallel light rays passing the black hole, drawn two ways: as straight lines (the Newtonian assumption that mass doesn't bend light) and as true geodesics (integrated from the Schwarzschild orbit equation). The gap between the two panels <em>is</em> gravitational lensing.</p>
+
+  <div class="control-row" style="max-width:320px; margin-top:10px;">
+    <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+    <input type="range" id="mass" min="0.4" max="2.5" step="0.01" value="1.0" />
+  </div>
+
+  <div class="split">
+    <div class="panelcv"><canvas id="newton"></canvas><div class="lbl">Newtonian · straight rays</div></div>
+    <div class="panelcv"><canvas id="gr"></canvas><div class="lbl">general relativity · curved rays</div></div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const nCv = document.getElementById("newton");
+const gCv = document.getElementById("gr");
+const massEl = document.getElementById("mass");
+
+function fitAll() { [nCv,gCv].forEach(c=>{ c.width=c.parentElement.clientWidth; c.height=c.parentElement.clientHeight; }); }
+window.addEventListener("resize", () => { fitAll(); draw(); });
+massEl.addEventListener("input", draw);
+
+function draw() {
+  const M = parseFloat(massEl.value);
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  fitAll();
+  const bcrit = Physics.bCrit(M);
+  const scale = Math.min(nCv.width, nCv.height) / (bcrit*10);
+
+  [nCv, gCv].forEach((cv, isGR) => {
+    const ctx = cv.getContext("2d");
+    const w=cv.width, h=cv.height, cx=w/2, cy=h/2;
+    ctx.fillStyle = "#05060a"; ctx.fillRect(0,0,w,h);
+    ctx.beginPath(); ctx.arc(cx,cy, Physics.rs(M)*scale, 0, Math.PI*2);
+    ctx.fillStyle="#000"; ctx.fill(); ctx.strokeStyle="#333"; ctx.stroke();
+
+    const N = 14;
+    for (let i=0;i<N;i++) {
+      const b = (i - N/2 + 0.5) * (bcrit*7/N);
+      const absB = Math.abs(b);
+      ctx.beginPath();
+      if (!isGR) {
+        // straight line at height b, full width
+        const y = cy - b*scale;
+        ctx.moveTo(0,y); ctx.lineTo(w,y);
+      } else {
+        if (absB < bcrit*1.01) {
+          // captured: draw spiral stub into the hole
+          const { points } = Physics.tracePhoton(M, Math.max(absB, bcrit*0.4), { dphi: 0.02, maxPhi: 25 });
+          points.forEach((p,idx) => {
+            const sign = b < 0 ? -1 : 1;
+            const x = cx + p.r*Math.cos(p.phi*sign)*scale;
+            const y = cy + p.r*Math.sin(p.phi*sign)*scale*sign;
+            if (idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+          });
+        } else {
+          const { points } = Physics.tracePhoton(M, absB, { dphi: 0.02, maxPhi: 20 });
+          const sign = b < 0 ? -1 : 1;
+          // mirror the outgoing half to build the full incoming+outgoing path
+          const full = [];
+          for (let k=points.length-1;k>=0;k--) full.push({ r: points[k].r, phi: -points[k].phi });
+          for (let k=0;k<points.length;k++) full.push(points[k]);
+          ctx.beginPath();
+          full.forEach((p,idx) => {
+            const x = cx + p.r*Math.cos(p.phi)*scale;
+            const y = cy - p.r*Math.sin(p.phi)*scale*sign;
+            if (idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+          });
+        }
+      }
+      ctx.strokeStyle = absB < bcrit*1.01 ? "rgba(217,97,79,0.7)" : "rgba(191,227,255,0.55)";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  });
+}
+fitAll();
+draw();
+</script>
+</body>
+</html>

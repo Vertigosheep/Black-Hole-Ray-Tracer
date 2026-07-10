@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Photon Trajectory Graph — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .legend { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+  .swatch { width: 12px; height: 3px; border-radius: 2px; }
+  .canvas-wrap { background: #05060a; border: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">02</span><h2>Photon Trajectory Graph</h2></div>
+  <p class="lead">Four photons launched with different impact parameters, integrated through the same orbit equation that drives the renderer. Impact parameter b sets the outcome.</p>
+
+  <div class="layout" style="margin-top:20px;">
+    <div class="panel">
+      <h3 style="font-size:13px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em;">Mass</h3>
+      <div class="control-row">
+        <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+        <input type="range" id="mass" min="0.5" max="2" step="0.01" value="1.0" />
+      </div>
+      <div class="control-row">
+        <label>Source distance <span class="val mono" id="distVal">15.0 M</span></label>
+        <input type="range" id="dist" min="5" max="30" step="0.2" value="15" />
+      </div>
+      <div class="control-row">
+        <label>Source angle <span class="val mono" id="angleVal">180°</span></label>
+        <input type="range" id="angle" min="0" max="360" step="1" value="180" />
+      </div>
+      <div class="control-row">
+        <label>Ray count <span class="val mono" id="rayCountVal">8</span></label>
+        <input type="range" id="rayCount" min="1" max="20" step="1" value="8" />
+      </div>
+      <div class="control-row">
+        <label>Ray spread / offset <span class="val mono" id="spreadVal">24°</span></label>
+        <input type="range" id="spread" min="0" max="120" step="1" value="24" />
+      </div>
+      <div class="control-row">
+        <label>Source type</label>
+        <select id="sourceType">
+          <option value="point" selected>Point Source (divergent)</option>
+          <option value="parallel">Parallel Beam</option>
+        </select>
+      </div>
+      <div class="legend" id="legend"></div>
+      <p style="font-size:12px; color:var(--text-dim); margin-top:16px;">
+        b_crit = 3√3 M ≈ <span class="mono" id="bcrit"></span>. Rays with b below this are captured; just above it they can orbit several times before escaping or falling in.
+      </p>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="cv"></canvas>
+    </div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+
+// Sizing
+function fit() {
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = 560;
+}
+fit();
+window.addEventListener("resize", () => { fit(); draw(); });
+
+// Controls
+const massEl = document.getElementById("mass");
+const distEl = document.getElementById("dist");
+const angleEl = document.getElementById("angle");
+const rayCountEl = document.getElementById("rayCount");
+const spreadEl = document.getElementById("spread");
+const sourceTypeEl = document.getElementById("sourceType");
+
+const state = {
+  mass: 1.0,
+  dist: 15.0,
+  angle: 180,
+  rayCount: 8,
+  spread: 24,
+  sourceType: 'point',
+  animationOffset: 0
+};
+
+// Event Listeners
+massEl.addEventListener("input", e => { state.mass = parseFloat(e.target.value); draw(); });
+distEl.addEventListener("input", e => { state.dist = parseFloat(e.target.value); draw(); });
+angleEl.addEventListener("input", e => { state.angle = parseFloat(e.target.value); draw(); });
+rayCountEl.addEventListener("input", e => { state.rayCount = parseInt(e.target.value); draw(); });
+spreadEl.addEventListener("input", e => { state.spread = parseFloat(e.target.value); draw(); });
+sourceTypeEl.addEventListener("change", e => { state.sourceType = e.target.value; draw(); });
+
+// Canvas drag-and-drop to position light source
+let isDragging = false;
+
+function getMousePos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+canvas.addEventListener("pointerdown", e => {
+  const pos = getMousePos(e);
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+  const scale = Math.min(w, h) / 32; // world scale
+  
+  // Calculate source canvas pos
+  const sourceRad = state.angle * Math.PI / 180;
+  const sx = cx + state.dist * Math.cos(sourceRad) * scale;
+  const sy = cy - state.dist * Math.sin(sourceRad) * scale;
+  
+  const distToSource = Math.hypot(pos.x - sx, pos.y - sy);
+  if (distToSource < 20) {
+    isDragging = true;
+    canvas.setPointerCapture(e.pointerId);
+  }
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!isDragging) return;
+  const pos = getMousePos(e);
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+  const scale = Math.min(w, h) / 32;
+  
+  const dx = (pos.x - cx) / scale;
+  const dy = -(pos.y - cy) / scale;
+  
+  state.dist = Math.max(3.5, Math.min(30.0, Math.hypot(dx, dy)));
+  let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (angle < 0) angle += 360;
+  state.angle = angle;
+  
+  // Update sliders
+  distEl.value = state.dist;
+  angleEl.value = state.angle;
+  
+  draw();
+});
+
+canvas.addEventListener("pointerup", e => {
+  if (isDragging) {
+    isDragging = false;
+    canvas.releasePointerCapture(e.pointerId);
+  }
+});
+
+// Run animation loop
+function animate() {
+  state.animationOffset = (state.animationOffset + 0.18) % 15.0;
+  draw();
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+function draw() {
+  const M = state.mass;
+  const bcrit = Physics.bCrit(M);
+  
+  // Update labels
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  document.getElementById("distVal").textContent = state.dist.toFixed(1) + " M";
+  document.getElementById("angleVal").textContent = Math.round(state.angle) + "°";
+  document.getElementById("rayCountVal").textContent = state.rayCount;
+  document.getElementById("spreadVal").textContent = state.spread + (state.sourceType === 'point' ? "°" : " M");
+  document.getElementById("bcrit").textContent = bcrit.toFixed(2) + " M";
+
+  const w = canvas.width, h = canvas.height;
+  const cx = w/2, cy = h/2;
+  const scale = Math.min(w, h) / 32; // world scale matches React App sandbox
+
+  ctx.fillStyle = "#05060a";
+  ctx.fillRect(0, 0, w, h);
+
+  // Reference Grid lines
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.02)";
+  ctx.lineWidth = 1;
+  const gridSpacing = 2 * scale;
+  for (let x = cx % gridSpacing; x < w; x += gridSpacing) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  }
+  for (let y = cy % gridSpacing; y < h; y += gridSpacing) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+
+  // Draw event horizon + photon sphere + ISCO boundaries
+  const rs = Physics.rs(state.mass);
+  const rph = Physics.photonSphere(state.mass);
+  const risco = 6 * state.mass;
+
+  // ISCO boundary
+  ctx.strokeStyle = "rgba(191, 227, 255, 0.08)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, risco * scale, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Photon sphere boundary
+  ctx.strokeStyle = "rgba(232, 163, 61, 0.25)";
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rph * scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Event horizon boundary
+  ctx.beginPath();
+  ctx.arc(cx, cy, rs * scale, 0, Math.PI * 2);
+  ctx.fillStyle = "#000000";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(217, 97, 79, 0.5)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Physics calculation of trajectories
+  const sourceRad = state.angle * Math.PI / 180;
+  const sourcePos = {
+    x: state.dist * Math.cos(sourceRad),
+    y: state.dist * Math.sin(sourceRad)
+  };
+
+  const rays = [];
+  const N = state.rayCount;
+  const centralAngleRad = sourceRad + Math.PI; // point towards the black hole
+  const spreadRad = state.spread * Math.PI / 180;
+
+  const dirX = Math.cos(centralAngleRad);
+  const dirY = Math.sin(centralAngleRad);
+  const perpX = -dirY;
+  const perpY = dirX;
+
+  for (let i = 0; i < N; i++) {
+    let posX = sourcePos.x;
+    let posY = sourcePos.y;
+    let velX = 0, velY = 0;
+
+    if (state.sourceType === 'point') {
+      let rayAngle = centralAngleRad;
+      if (N > 1) {
+        const t = i / (N - 1);
+        rayAngle = centralAngleRad + (t - 0.5) * spreadRad;
+      }
+      velX = Math.cos(rayAngle);
+      velY = Math.sin(rayAngle);
+    } else {
+      let offset = 0;
+      if (N > 1) {
+        const t = i / (N - 1);
+        const maxOffset = state.spread * 0.15;
+        offset = (t - 0.5) * maxOffset * 10;
+      }
+      posX = sourcePos.x + offset * perpX;
+      posY = sourcePos.y + offset * perpY;
+      velX = dirX;
+      velY = dirY;
+    }
+
+    const points = [{ x: posX, y: posY }];
+    let status = 'escaped';
+    let rPrev = Math.sqrt(posX * posX + posY * posY);
+    const dt = 0.1;
+    const maxSteps = 400;
+
+    // Derivative function for Cartesian null-geodesic:
+    //   state = [posX, posY, velX, velY]
+    //   acceleration = -(3M * L²) / r⁵ · (posX, posY)
+    //   velocity is re-normalized to unit speed (null ray)
+    const derivsFn = (s) => {
+      const px = s[0], py = s[1], vx = s[2], vy = s[3];
+      const r2 = px * px + py * py;
+      const r = Math.sqrt(r2);
+      const L = px * vy - py * vx;
+      const L2 = L * L;
+      const r5 = r2 * r2 * r;
+      const accFactor = -(3.0 * M * L2) / r5;
+      return [vx, vy, accFactor * px, accFactor * py];
+    };
+
+    let photonState = new Float64Array([posX, posY, velX, velY]);
+
+    for (let step = 0; step < maxSteps; step++) {
+      const r = Math.sqrt(photonState[0] * photonState[0] + photonState[1] * photonState[1]);
+
+      if (r < rs) {
+        status = 'captured';
+        const ratio = rs / rPrev;
+        points.push({ x: points[points.length-1].x * ratio, y: points[points.length-1].y * ratio });
+        break;
+      }
+      if (r > 40.0) {
+        status = 'escaped';
+        break;
+      }
+
+      // RK4 step via the reusable Physics helper
+      photonState = Physics.rk4Step(derivsFn, photonState, dt);
+
+      // Re-normalize velocity to unit speed (null geodesic)
+      const speed = Math.sqrt(photonState[2] * photonState[2] + photonState[3] * photonState[3]);
+      if (speed > 0) {
+        photonState[2] /= speed;
+        photonState[3] /= speed;
+      }
+
+      posX = photonState[0];
+      posY = photonState[1];
+      velX = photonState[2];
+      velY = photonState[3];
+
+      points.push({ x: posX, y: posY });
+      rPrev = r;
+    }
+
+    rays.push({ points, status });
+  }
+
+  // Draw rays
+  rays.forEach((ray) => {
+    ctx.beginPath();
+    ray.points.forEach((p, idx) => {
+      const x = cx + p.x * scale;
+      const y = cy - p.y * scale;
+      if (idx === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    
+    // Choose color based on status
+    if (ray.status === 'captured') {
+      ctx.strokeStyle = "rgba(217, 97, 79, 0.65)"; // Captured red
+    } else {
+      ctx.strokeStyle = "rgba(191, 227, 255, 0.6)"; // Escaped cyan-blue
+    }
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Draw animated photon particles along paths
+    const pts = ray.points;
+    const len = pts.length;
+    if (len > 1) {
+      const stepDist = 20; // distance between photons in steps
+      for (let offset = Math.floor(state.animationOffset); offset < len; offset += stepDist) {
+        const pt = pts[offset];
+        if (pt) {
+          const px = cx + pt.x * scale;
+          const py = cy - pt.y * scale;
+          ctx.beginPath();
+          ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+          ctx.fillStyle = ray.status === 'captured' ? "#ff8888" : "#ffffff";
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = ray.status === 'captured' ? "#ff3333" : "#88ccff";
+          ctx.fill();
+          ctx.shadowBlur = 0; // reset
+        }
+      }
+    }
+  });
+
+  // Draw light source anchor
+  const sx = cx + sourcePos.x * scale;
+  const sy = cy - sourcePos.y * scale;
+  ctx.beginPath();
+  ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+  ctx.fillStyle = isDragging ? "#e8a33d" : "#bfe3ff";
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = "#e8a33d";
+  ctx.fill();
+  ctx.shadowBlur = 0; // reset
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Add source glow rings
+  ctx.strokeStyle = "rgba(232, 163, 61, 0.35)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(sx, sy, 14, 0, Math.PI*2); ctx.stroke();
+}
+</script>
+</body>
+</html>
