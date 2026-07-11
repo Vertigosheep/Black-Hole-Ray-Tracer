@@ -155,7 +155,9 @@
   <section style="padding-top:50px;" id="redshift-section">
     <div class="section-title"><span class="idx">§3</span><h2>Gravitational Redshift &amp; Time Dilation</h2></div>
     <p class="lead" style="max-width:720px;">
-      A clock sitting near a black hole ticks slower than one far away — and photons climbing out of a gravity well lose energy and shift toward the red end of the spectrum. Both effects follow directly from the <strong>Schwarzschild metric factor</strong> <em>f(r) = 1 − 2M/r</em>.
+      A clock sitting near a black hole ticks slower than one far away — and photons climbing out of a gravity well lose energy and shift toward the red end of the spectrum. Both effects follow from the <strong>Schwarzschild metric</strong>, 
+with the gravitational time component described by the metric factor 
+<em>f(r) = 1 − 2GM/(rc²)</em>.
     </p>
 
     <div class="grid-2" style="margin-top:24px; align-items:start;">
@@ -192,16 +194,16 @@
             <div class="v" id="gr-gap-val">—</div>
           </div>
           <div class="grav-readout__cell">
-            <div class="k">Escape velocity v<sub>esc</sub></div>
+            <div class="k">Newtonian escape velocity</div>
             <div class="v" id="gr-vesc-val">—</div>
           </div>
         </div>
 
         <div class="grav-readout__formula">
-          <span>z(r)</span> = 1 / √(1 − 2M/r) − 1<br/>
-          <span>τ/t</span> = √(1 − 2M/r)<br/>
-          <span>f(r)</span> = 1 − r<sub>s</sub>/r &nbsp;|&nbsp; r<sub>s</sub> = 2M<br/>
-          <span>v<sub>esc</sub></span> = √(2M/r)
+          <span>z(r)</span> = 1/√(1 - 2GM/rc²) − 1<br/>
+          <span>τ/t</span> = √(1 - 2GM/rc²)<br/>
+          <span>f(r)</span> = 1 − r<sub>s</sub>/r &nbsp;|&nbsp; r<sub>s</sub> = 2GM/c²<br/>
+          <span>v<sub>esc</sub></span> = √(2GM/r) &nbsp; (Newtonian)
         </div>
       </div>
 
@@ -209,10 +211,12 @@
       <div class="panel">
         <h3 style="color:var(--amber); font-size:15px;">What these numbers mean</h3>
         <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:12px;">
-          <strong style="color:var(--text);">Redshift z</strong> tells you by how much a photon emitted at radius <em>r</em> is stretched when received at infinity. A photon emitted with wavelength λ arrives with λ · (1 + z). At r → 2M the redshift diverges — the photon's energy goes to zero before it escapes.
+          <strong style="color:var(--text);">Redshift z</strong> tells you by how much a photon emitted at radius <em>r</em> is stretched when received at infinity. A photon emitted with wavelength λ arrives at infinity with wavelength λ · (1 + z). 
+As r → 2M, the gravitational redshift diverges, meaning a distant observer 
+measures the photon's energy becoming arbitrarily small.
         </p>
         <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:12px;">
-          <strong style="color:var(--text);">Time dilation τ/t</strong> is the ratio of proper time (experienced by a stationary observer at <em>r</em>) to coordinate time at infinity. At r = 6M (ISCO) a clock ticks at ≈ 94% of the rate of a distant clock. At the photon sphere (r = 3M) it ticks at ≈ 82%.
+          <strong style="color:var(--text);">Time dilation τ/t</strong> is the ratio of proper time (experienced by a stationary observer at <em>r</em>) to coordinate time at infinity. At r = 6M (ISCO) a stationary clock ticks at ≈ 81.6% of the rate of a distant clock. At the photon sphere (r = 3M) it ticks at ≈ 57.7% of the rate of a distant clock.
         </p>
         <div class="stat-grid" style="margin-top:14px;">
           <div class="stat-cell"><div class="k">At ISCO (r = 6M)</div><div class="v" id="gr-isco-z">—</div></div>
@@ -406,7 +410,5 @@ function draw() {
 }
 draw();
 </script>
-    <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
-<script src="https://files.bpcontent.cloud/2026/07/10/19/20260710191342-V7KYH3TC.js" defer></script>
 </body>
 </html>
