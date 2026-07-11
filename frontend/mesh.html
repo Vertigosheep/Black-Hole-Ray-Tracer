@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Spacetime Curvature Mesh — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 260px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  #meshWrap { background: #05060a; border: 1px solid var(--line); aspect-ratio: 4/3; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">03</span><h2>Spacetime Curvature Mesh</h2></div>
+  <p class="lead">An embedding-diagram visualization: a flat grid pulled down into a funnel by z(r) = 2√(2M(r − 2M)), the classic "rubber sheet" picture of the Schwarzschild geometry's spatial curvature.</p>
+
+  <div class="layout" style="margin-top:20px;">
+    <div class="panel">
+      <div class="control-row">
+        <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+        <input type="range" id="mass" min="0.4" max="2.5" step="0.01" value="1.0" />
+      </div>
+      <div class="control-row">
+        <label>Grid density <span class="val mono" id="densVal">42</span></label>
+        <input type="range" id="dens" min="16" max="80" step="1" value="42" />
+      </div>
+      <div class="control-row">
+        <label>Rotation speed <span class="val mono" id="rotVal">0.30</span></label>
+        <input type="range" id="rot" min="0" max="1" step="0.01" value="0.3" />
+      </div>
+      <p style="font-size:11.5px; color:var(--text-dim); margin-top:10px;">
+        Drag to orbit the camera manually; the auto-rotation continues underneath.
+      </p>
+    </div>
+    <div id="meshWrap"></div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="blackhole-bg.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+const wrap = document.getElementById("meshWrap");
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060a);
+const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth/wrap.clientHeight, 0.1, 1000);
+camera.position.set(0, 14, 22);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+wrap.appendChild(renderer.domElement);
+
+const amber = new THREE.Color(0xe8a33d);
+const cyan = new THREE.Color(0xbfe3ff);
+
+let group = new THREE.Group();
+scene.add(group);
+
+function buildMesh(M, density) {
+  scene.remove(group);
+  group = new THREE.Group();
+  const size = 24;
+  const geo = new THREE.PlaneGeometry(size, size, density, density);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  const rs = 2*M;
+  for (let i=0;i<pos.count;i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const r = Math.max(Math.hypot(x,z), rs*1.001);
+    const y = -2*Math.sqrt(Math.max(2*M*(r-rs), 0));
+    pos.setY(i, Math.max(y, -9));
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshBasicMaterial({ color: 0x8892a6, wireframe: true, transparent: true, opacity: 0.65 });
+  const mesh = new THREE.Mesh(geo, mat);
+  group.add(mesh);
+
+  const ringGeo = new THREE.RingGeometry(rs*0.98, rs*1.15, 48);
+  ringGeo.rotateX(-Math.PI/2);
+  const ringMat = new THREE.MeshBasicMaterial({ color: amber, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = -2*Math.sqrt(Math.max(2*M*(rs*1.001-rs),0)) - 0.05;
+  group.add(ring);
+
+  scene.add(group);
+}
+
+const massEl = document.getElementById("mass");
+const densEl = document.getElementById("dens");
+const rotEl = document.getElementById("rot");
+function labels() {
+  document.getElementById("massVal").textContent = parseFloat(massEl.value).toFixed(2);
+  document.getElementById("densVal").textContent = densEl.value;
+  document.getElementById("rotVal").textContent = parseFloat(rotEl.value).toFixed(2);
+}
+function rebuild() { labels(); buildMesh(parseFloat(massEl.value), parseInt(densEl.value)); }
+massEl.addEventListener("input", rebuild);
+densEl.addEventListener("input", rebuild);
+rotEl.addEventListener("input", labels);
+rebuild();
+
+let dragging=false, lastX=0, lastY=0, manualYaw=0, manualPitch=0.5;
+renderer.domElement.addEventListener("pointerdown", e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+window.addEventListener("pointerup", ()=>dragging=false);
+window.addEventListener("pointermove", e=>{
+  if(!dragging) return;
+  manualYaw += (e.clientX-lastX)*0.006;
+  manualPitch = Math.max(0.15, Math.min(1.4, manualPitch + (e.clientY-lastY)*0.006));
+  lastX=e.clientX; lastY=e.clientY;
+});
+
+function resize() {
+  camera.aspect = wrap.clientWidth/wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+}
+window.addEventListener("resize", resize);
+
+let autoT = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  autoT += 0.005 * parseFloat(rotEl.value);
+  const yaw = autoT + manualYaw;
+  const dist = 26;
+  camera.position.set(dist*Math.sin(yaw)*Math.cos(manualPitch), dist*Math.sin(manualPitch)+6, dist*Math.cos(yaw)*Math.cos(manualPitch));
+  camera.lookAt(0,-2,0);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+    <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2026/07/10/19/20260710191342-V7KYH3TC.js" defer></script>
+</body>
+</html>

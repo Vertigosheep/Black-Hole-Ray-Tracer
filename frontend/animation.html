@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ray Tracing Animation — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .canvas-wrap { background: #05060a; border: 1px solid var(--line); }
+  .transport { display:flex; align-items:center; gap:16px; margin-top:14px; flex-wrap: wrap; }
+  .transport .btn { min-width: 84px; }
+  .speed-wrap { display:flex; align-items:center; gap:10px; flex:1; min-width:220px; }
+  .speed-wrap label { font-size:12px; color:var(--text-dim); white-space:nowrap; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">05</span><h2>Ray Tracing Animation</h2></div>
+  <p class="lead">Watch photons travel in real time — some bend and escape, some bend and fall past the horizon, one radial ray never bends at all.</p>
+
+  <div class="canvas-wrap" style="margin-top:16px;"><canvas id="cv"></canvas></div>
+
+  <div class="transport">
+    <button class="btn primary" id="playBtn">⏸ Pause</button>
+    <button class="btn" id="resetBtn">↺ Reset</button>
+    <div class="speed-wrap">
+      <label>Speed <span class="mono" id="speedVal" style="color:var(--amber);">1.0×</span></label>
+      <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1" style="flex:1;" />
+    </div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+function fit() { canvas.width = canvas.parentElement.clientWidth; canvas.height = 560; }
+fit();
+window.addEventListener("resize", () => { fit(); });
+
+const M = 1.0;
+const bcrit = Physics.bCrit(M);
+
+const RAYS = [
+  { b: bcrit*1.6, color: "#7fd4ff" },   // bends and escapes
+  { b: bcrit*0.8, color: "#d9614f" },   // bends and falls in
+  { b: bcrit*1.02, color: "#e8a33d" },  // grazes photon sphere
+  { b: 0.0001, color: "#c9a8ff" },      // radial, no bend
+];
+
+const paths = RAYS.map(r => {
+  if (r.b < bcrit*0.01) {
+    // radial fall-in, straight line
+    return { color: r.color, pts: Array.from({length: 200}, (_,i) => ({ r: 40*M - i*(40*M-2*M)/199, phi: 0 })), radial: true };
+  }
+  const { points } = Physics.tracePhoton(M, r.b, { dphi: 0.012, maxPhi: 30, r0: 40*M });
+  return { color: r.color, pts: points, radial: false };
+});
+
+const scale = 10;
+let progress = 0;
+let playing = true;
+let speed = 1;
+
+const playBtn = document.getElementById("playBtn");
+const resetBtn = document.getElementById("resetBtn");
+const speedEl = document.getElementById("speed");
+
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+});
+resetBtn.addEventListener("click", () => { progress = 0; });
+speedEl.addEventListener("input", () => {
+  speed = parseFloat(speedEl.value);
+  document.getElementById("speedVal").textContent = speed.toFixed(1) + "×";
+});
+
+function draw() {
+  const w = canvas.width, h = canvas.height, cx = w/2, cy = h/2;
+  ctx.fillStyle = "#05060a"; ctx.fillRect(0,0,w,h);
+
+  ctx.beginPath(); ctx.arc(cx,cy, Physics.rs(M)*scale, 0, Math.PI*2);
+  ctx.fillStyle="#000"; ctx.fill(); ctx.strokeStyle="#333"; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy, Physics.photonSphere(M)*scale, 0, Math.PI*2);
+  ctx.strokeStyle="rgba(232,163,61,0.3)"; ctx.setLineDash([3,4]); ctx.stroke(); ctx.setLineDash([]);
+
+  paths.forEach(path => {
+    const n = Math.floor(path.pts.length * Math.min(progress, 1));
+    ctx.beginPath();
+    for (let i=0; i<n; i++) {
+      const p = path.pts[i];
+      const x = cx + p.r*Math.cos(p.phi)*scale;
+      const y = cy + (path.radial ? (i/path.pts.length)*(h*0.35) - h*0.18 : p.r*Math.sin(p.phi)*scale);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle = path.color; ctx.lineWidth = 1.8; ctx.stroke();
+
+    if (n > 0 && n < path.pts.length) {
+      const p = path.pts[n-1];
+      const x = cx + p.r*Math.cos(p.phi)*scale;
+      const y = cy + (path.radial ? ((n-1)/path.pts.length)*(h*0.35) - h*0.18 : p.r*Math.sin(p.phi)*scale);
+      ctx.beginPath(); ctx.arc(x,y,3.2,0,Math.PI*2); ctx.fillStyle = path.color; ctx.fill();
+    }
+  });
+}
+
+function loop() {
+  if (playing) {
+    progress += 0.004 * speed;
+    if (progress > 1.3) progress = 0;
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+    <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2026/07/10/19/20260710191342-V7KYH3TC.js" defer></script>
+</body>
+</html>

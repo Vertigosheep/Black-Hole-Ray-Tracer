@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Light Intensity Profile — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .canvas-wrap { background: var(--panel); border: 1px solid var(--line); padding: 16px; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">07</span><h2>Light Intensity Profile</h2></div>
+  <p class="lead">Brightness measured along a horizontal scanline through the center of the rendered image, as a function of distance from the black hole's center. Approximated from disk emission and photon-ring focusing, matching the renderer's geometry.</p>
+
+  <div class="control-row" style="max-width:320px; margin-top:14px;">
+    <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+    <input type="range" id="mass" min="0.5" max="2" step="0.01" value="1.0" />
+  </div>
+
+  <div class="canvas-wrap" style="margin-top:14px;"><canvas id="cv"></canvas></div>
+
+  <div class="panel" style="margin-top:18px;">
+    <p style="color:var(--text-dim); font-size:13px; margin:0;">
+      The narrow spike is the <strong>photon ring</strong>, where light that circled the photon sphere piles up
+      into a thin bright line. The flat zero region is the <strong>shadow</strong>. Outside the ring, intensity
+      falls off as the accretion disk's emission drops with radius, settling to a dim, uniform
+      <strong>background</strong> level far from the hole.
+    </p>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+function fit() { canvas.width = canvas.parentElement.clientWidth - 32; canvas.height = 380; }
+fit();
+window.addEventListener("resize", () => { fit(); draw(); });
+const massEl = document.getElementById("mass");
+massEl.addEventListener("input", draw);
+
+function intensityAt(x, M) {
+  const rs = Physics.rs(M), rph = Physics.photonSphere(M);
+  if (x < rs) return 0;
+  const ringWidth = 0.12 * M;
+  const ring = Math.exp(-Math.pow((x - rph) / ringWidth, 2)) * 1.0;
+  const diskInner = 3*rs, diskOuter = 8.5*rs;
+  let disk = 0;
+  if (x > diskInner) {
+    disk = 0.55 * Math.pow(diskInner / Math.max(x, diskInner), 2.4);
+    if (x > diskOuter) disk *= Math.exp(-(x-diskOuter)/(2*M));
+  }
+  const bg = 0.03;
+  return Math.min(1.15, ring + disk + bg);
+}
+
+function draw() {
+  const M = parseFloat(massEl.value);
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  const w = canvas.width, h = canvas.height;
+  const padL = 55, padB = 36, padT = 20, padR = 20;
+  ctx.fillStyle = "#12151f"; ctx.fillRect(0,0,w,h);
+
+  const xMax = 20 * M;
+  const N = 400;
+  function X(x) { return padL + x/xMax * (w-padL-padR); }
+  function Y(v) { return h-padB - v * (h-padT-padB); }
+
+  ctx.strokeStyle = "#262b3a"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,h-padB); ctx.lineTo(w-padR,h-padB); ctx.stroke();
+  ctx.fillStyle = "#8892a6"; ctx.font = "11px JetBrains Mono";
+  ctx.fillText("distance from center (M)", padL, h-10);
+  ctx.save(); ctx.translate(16,h/2); ctx.rotate(-Math.PI/2); ctx.fillText("relative intensity", 0,0); ctx.restore();
+
+  ctx.beginPath();
+  for (let i=0;i<=N;i++) {
+    const x = xMax*i/N;
+    const v = intensityAt(x, M);
+    const px = X(x), py = Y(v/1.15);
+    if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle = "#e8a33d"; ctx.lineWidth = 2; ctx.stroke();
+
+  // shadow region shading
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(X(0), padT, X(Physics.rs(M))-X(0), h-padT-padB);
+
+  ["rs","photonSphere"].forEach(fn => {});
+  const rs = Physics.rs(M), rph = Physics.photonSphere(M);
+  ctx.fillStyle = "#8892a6"; ctx.font = "10px JetBrains Mono";
+  ctx.fillText("horizon", X(rs)+4, padT+12);
+  ctx.fillText("photon ring", X(rph)+4, padT+26);
+}
+draw();
+</script>
+    <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2026/07/10/19/20260710191342-V7KYH3TC.js" defer></script>
+</body>
+</html>

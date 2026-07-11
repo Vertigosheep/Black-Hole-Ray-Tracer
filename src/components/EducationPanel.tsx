@@ -18,8 +18,8 @@ export default function EducationPanel() {
           <p className="mb-3">
             This creates <strong className="text-white">gravitational lensing</strong>: background stars have their light focused and bent around the black hole. When a star is located directly behind the black hole, its lensed light is warped into a perfect circle called an <strong className="text-white font-serif italic">Einstein Ring</strong>.
           </p>
-          <div className="bg-white/[0.02] rounded-sm p-3 border border-white/10 font-mono text-[10px] text-slate-300">
-            <span className="text-[#F27D26] font-bold uppercase tracking-wider">Deflection Formula:</span><br />
+          <div className="bg-[#0F0E47]/30 rounded-sm p-3 border border-[#505081]/30 font-mono text-[10px] text-slate-300">
+            <span className="text-[#8686AC] font-bold uppercase tracking-wider">Deflection Formula:</span><br />
             &alpha; &approx; 4GM / (c² * b)<br />
             <span className="text-slate-500 text-[9px] block mt-1">where b is the impact parameter (distance of closest approach).</span>
           </div>
@@ -39,8 +39,8 @@ export default function EducationPanel() {
           <p className="mb-3">
             These orbits are highly unstable: any tiny microscopic deviation or vibration will cause the photon to either plunge into the event horizon or escape out to infinity.
           </p>
-          <div className="bg-[#F27D26]/5 rounded-sm p-3 border border-[#F27D26]/20 text-slate-300 text-xs flex gap-2">
-            <AlertCircle size={15} className="text-[#F27D26] shrink-0 mt-0.5" />
+          <div className="bg-[#8686AC]/5 rounded-sm p-3 border border-[#8686AC]/20 text-slate-300 text-xs flex gap-2">
+            <AlertCircle size={15} className="text-[#8686AC] shrink-0 mt-0.5" />
             <span>
               <strong className="text-white font-serif italic">Astrophysics Mind-bender:</strong> If you stood on the photon sphere and pointed a flashlight horizontally, the emitted photons would orbit the black hole and strike you in the back of your head!
             </span>
@@ -58,7 +58,7 @@ export default function EducationPanel() {
           <p className="mb-3">
             The <strong className="text-white font-serif italic">Event Horizon</strong> is the boundary of no return. Its radius is called the <strong className="text-white">Schwarzschild Radius (R_s)</strong>, defined as:
           </p>
-          <div className="bg-white/[0.03] rounded-sm p-3 text-center border border-white/10 font-mono text-sm text-[#F27D26] mb-3 font-bold tracking-wider">
+          <div className="bg-[#0F0E47]/30 rounded-sm p-3 text-center border border-[#505081]/30 font-mono text-sm text-[#8686AC] mb-3 font-bold tracking-wider">
             R_s = 2GM / c²
           </div>
           <p className="mb-3">
@@ -81,7 +81,7 @@ export default function EducationPanel() {
             The accretion disk of a black hole rotates at high relativistic speeds. Because of this, we observe an asymmetrical brightness distribution known as <strong className="text-white">Doppler beaming</strong> or <strong className="text-white font-serif italic">relativistic beaming</strong>.
           </p>
           <p className="mb-3">
-            The gas rotating <strong className="text-[#F27D26] font-bold">toward</strong> the observer (the left side, in our standard counter-clockwise configuration) emits light that is blueshifted, making it look hotter, brighter, and more energetic.
+            The gas rotating <strong className="text-[#8686AC] font-bold">toward</strong> the observer (the left side, in our standard counter-clockwise configuration) emits light that is blueshifted, making it look hotter, brighter, and more energetic.
           </p>
           <p>
             Conversely, the gas rotating <strong className="text-slate-400 font-bold">away</strong> from us (the right side) is redshifted, appearing cooler, dimmer, and highly faded. This is why realistic accretion disks are highly asymmetrical!
@@ -113,21 +113,21 @@ export default function EducationPanel() {
   const activeTabObj = tabs.find((t) => t.id === activeTab) || tabs[0];
 
   return (
-    <div className="bg-white/[0.02] border border-white/10 rounded-sm p-5 shadow-2xl backdrop-blur-sm flex flex-col h-full">
+    <div className="bg-[#272757]/40 border border-[#505081]/30 rounded-sm p-5 shadow-2xl backdrop-blur-sm flex flex-col h-full">
       <div className="flex items-center gap-2.5 mb-4">
-        <BookOpen size={15} className="text-[#F27D26]" />
+        <BookOpen size={15} className="text-[#8686AC]" />
         <h3 className="font-mono text-xs font-bold text-white uppercase tracking-widest">Astrophysics Reference</h3>
       </div>
 
       {/* Tabs navigation */}
-      <div className="grid grid-cols-5 gap-1 border-b border-white/5 pb-2 mb-4">
+      <div className="grid grid-cols-5 gap-1 border-b border-[#505081]/20 pb-2 mb-4">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`py-2 px-1 rounded-none flex flex-col items-center gap-1.5 text-[9px] font-mono transition-all text-center leading-tight ${
               activeTab === tab.id
-                ? 'bg-[#F27D26]/10 text-[#F27D26] font-bold border border-[#F27D26]/20'
+                ? 'bg-[#8686AC]/10 text-[#8686AC] font-bold border border-[#8686AC]/20'
                 : 'text-slate-400 hover:text-white hover:bg-white/[0.02]'
             }`}
           >

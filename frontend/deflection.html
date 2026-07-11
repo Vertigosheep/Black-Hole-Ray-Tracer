@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Deflection Angle Graph — Event Horizon</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .canvas-wrap { background: var(--panel); border: 1px solid var(--line); padding: 16px; }
+</style>
+</head>
+<body>
+<canvas id="bh-bg" aria-hidden="true"></canvas>
+<div id="nav-root"></div>
+<div class="page-wide">
+  <div class="section-title"><span class="idx">06</span><h2>Deflection Angle Graph</h2></div>
+  <p class="lead">Deflection angle α as a function of impact parameter b, found by numerically integrating the orbit equation and comparing to the weak-field approximation α ≈ 4M/b.</p>
+
+  <div class="layout" style="margin-top:20px;">
+    <div class="panel">
+      <div class="control-row">
+        <label>Black hole mass (M) <span class="val mono" id="massVal">1.00</span></label>
+        <input type="range" id="mass" min="0.5" max="2" step="0.01" value="1.0" />
+      </div>
+      <div class="control-row">
+        <label>Closest approach marker (b) <span class="val mono" id="bVal">8.00 M</span></label>
+        <input type="range" id="bmark" min="5.2" max="20" step="0.05" value="8" />
+      </div>
+      <div class="stat-cell" style="padding:0; margin-top:10px;">
+        <div class="k">α at marked b (numeric)</div>
+        <div class="v" id="alphaNumeric">—</div>
+      </div>
+      <div class="stat-cell" style="padding:0; margin-top:10px;">
+        <div class="k">α at marked b (weak-field)</div>
+        <div class="v" id="alphaWeak">—</div>
+      </div>
+    </div>
+    <div class="canvas-wrap"><canvas id="cv"></canvas></div>
+  </div>
+</div>
+<script src="nav.js"></script>
+<script src="physics.js"></script>
+<script src="blackhole-bg.js"></script>
+<script>
+const canvas = document.getElementById("cv");
+const ctx = canvas.getContext("2d");
+function fit() { canvas.width = canvas.parentElement.clientWidth - 32; canvas.height = 520; }
+fit();
+window.addEventListener("resize", () => { fit(); draw(); });
+
+const massEl = document.getElementById("mass");
+const bmarkEl = document.getElementById("bmark");
+massEl.addEventListener("input", draw);
+bmarkEl.addEventListener("input", draw);
+
+function draw() {
+  const M = parseFloat(massEl.value);
+  document.getElementById("massVal").textContent = M.toFixed(2);
+  const bcrit = Physics.bCrit(M);
+  bmarkEl.min = (bcrit * 1.02).toFixed(2);
+  let bMark = Math.max(parseFloat(bmarkEl.value), bcrit*1.02);
+  document.getElementById("bVal").textContent = bMark.toFixed(2) + " M";
+
+  const w = canvas.width, h = canvas.height;
+  const padL = 60, padB = 40, padT = 20, padR = 20;
+  ctx.fillStyle = "#12151f";
+  ctx.fillRect(0,0,w,h);
+
+  const bMin = bcrit * 1.01, bMax = bcrit * 6;
+  const N = 140;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const b = bMin + (bMax-bMin) * i/N;
+    const a = Physics.deflectionAngle(M, b);
+    if (a !== null) pts.push({ b, a });
+  }
+  const maxA = Math.min(pts[0]?.a ?? 3, 3.4);
+
+  function X(b) { return padL + (b-bMin)/(bMax-bMin) * (w-padL-padR); }
+  function Y(a) { return h-padB - (Math.max(a,0)/maxA) * (h-padT-padB); }
+
+  // axes
+  ctx.strokeStyle = "#262b3a"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, h-padB); ctx.lineTo(w-padR, h-padB); ctx.stroke();
+  ctx.fillStyle = "#8892a6"; ctx.font = "11px JetBrains Mono";
+  ctx.fillText("impact parameter b (M)", padL, h-10);
+  ctx.save(); ctx.translate(16, h/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText("deflection angle α (rad)", 0, 0);
+  ctx.restore();
+
+  // numeric curve
+  ctx.beginPath();
+  pts.forEach((p,i) => { const x=X(p.b), y=Y(p.a); if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.strokeStyle = "#bfe3ff"; ctx.lineWidth = 2; ctx.stroke();
+
+  // weak field curve
+  ctx.beginPath();
+  pts.forEach((p,i) => { const aw = Physics.deflectionWeakField(M,p.b); const x=X(p.b), y=Y(aw); if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.strokeStyle = "#e8a33d"; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
+
+  // legend
+  ctx.fillStyle = "#bfe3ff"; ctx.fillRect(w-220, 20, 14, 3);
+  ctx.fillStyle = "#8892a6"; ctx.fillText("numeric (full GR)", w-200, 26);
+  ctx.fillStyle = "#e8a33d"; ctx.fillRect(w-220, 38, 14, 3);
+  ctx.fillStyle = "#8892a6"; ctx.fillText("weak-field  α ≈ 4M/b", w-200, 44);
+
+  // marker
+  const aMarkNum = Physics.deflectionAngle(M, bMark);
+  const aMarkWeak = Physics.deflectionWeakField(M, bMark);
+  if (aMarkNum !== null) {
+    const mx = X(bMark), my = Y(aMarkNum);
+    ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI*2); ctx.fillStyle = "#f2f0ea"; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(mx, padT); ctx.lineTo(mx, h-padB); ctx.strokeStyle = "rgba(242,240,234,0.15)"; ctx.stroke();
+  }
+  document.getElementById("alphaNumeric").textContent = aMarkNum !== null ? aMarkNum.toFixed(4) + " rad" : "captured";
+  document.getElementById("alphaWeak").textContent = aMarkWeak.toFixed(4) + " rad";
+}
+draw();
+</script>
+    <script src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"></script>
+<script src="https://files.bpcontent.cloud/2026/07/10/19/20260710191342-V7KYH3TC.js" defer></script>
+</body>
+</html>
